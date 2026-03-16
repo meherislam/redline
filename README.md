@@ -571,13 +571,3 @@ Changes modify chunk content immediately on application, then sit as `pending` u
 1. **The document always shows the latest state.** The frontend renders pending changes as inline redline markup (strikethrough for old text, highlight for new text). This matches how redlining works in tools like Word or Google Docs — you see the proposed changes in context.
 2. **Accept is a no-op on content.** Since the replacement text is already in the chunk, accepting just flips the status. No content mutation, no risk of a failed write during accept.
 3. **Reject is the only content operation.** Reverting text is more complex (finding the replacement, swapping it back, checking for conflicts with later changes), but it only happens on the less common path. Most changes get accepted.
-
-### Why batched bulk inserts?
-
-SQLAlchemy's default `db.add()` pattern stages objects individually — at commit time, each becomes a separate `INSERT` statement. For a Replace All across 200 occurrences, that's 200 round-trips to the database. Using `insert(Model), [list_of_dicts]` sends all rows in a single statement, reducing this to one round-trip.
-
-Batching at 100 rows per statement prevents oversized SQL statements that could strain the database parser or exceed statement size limits on very large operations. All batches execute within the same transaction, preserving atomicity — if any batch fails, the entire operation rolls back.
-
-### Why enums over strings?
-
-`status` and `source_type` use database-level enums (`str, enum.Enum` in Python, `ENUM` type in PostgreSQL) rather than unconstrained `VARCHAR` columns. This provides three benefits: the database rejects invalid values at the constraint level, the schema self-documents the allowed states, and Python code uses `ChangeStatus.pending` instead of the string `"pending"` — eliminating a class of typo bugs that would silently pass with string comparisons.
