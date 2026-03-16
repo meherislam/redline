@@ -1,0 +1,29 @@
+This Service Agreement is entered into as of March 1st, 2026, by and between Acme Corporation ("Provider") and Globex Industries ("Client").
+
+The term of this Agreement shall be twelve (12) months, commencing on the Effective Date. Either party may terminate this Agreement with thirty (30) days written notice to the other party.
+
+The Provider agrees to deliver the following services: software development, system integration, and ongoing technical support. All services shall be performed in a professional and workmanlike manner consistent with industry standards.
+
+The Client shall pay the Provider a monthly fee of $15,000, due on the first business day of each calendar month. Late payments shall accrue interest at a rate of 1.5% per month.
+
+All intellectual property created during the performance of this Agreement shall be owned by the Client upon full payment. The Provider retains no rights to any deliverables after final payment has been received.
+
+The Provider shall maintain the confidentiality of all proprietary information disclosed by the Client. This obligation shall survive the termination of this Agreement for a period of three (3) years.
+
+Neither party shall be liable for any indirect, incidental, or consequential damages arising out of this Agreement. The total liability of either party shall not exceed the total fees paid under this Agreement during the preceding twelve (12) month period.
+
+The Provider agrees to indemnify and hold harmless the Client from any claims, damages, or expenses arising from the Provider's negligence or willful misconduct in the performance of services under this Agreement.
+
+This Agreement shall be governed by and construed in accordance with the laws of the State of Delaware, without regard to its conflict of laws provisions.
+
+Any dispute arising under this Agreement shall be resolved through binding arbitration in Wilmington, Delaware, in accordance with the rules of the American Arbitration Association.
+
+This Agreement constitutes the entire understanding between the parties and supersedes all prior negotiations, representations, and agreements. No amendment or modification shall be valid unless made in writing and signed by both parties.
+
+The Provider shall not assign or transfer this Agreement without the prior written consent of the Client. Any attempted assignment without such consent shall be void and of no effect.
+
+Force Majeure: Neither party shall be liable for delays or failures in performance resulting from acts of God, war, terrorism, pandemic, or other circumstances beyond the reasonable control of the affected party.
+
+Notices under this Agreement shall be delivered to the following addresses: Acme Corporation, 123 Innovation Drive, San Francisco, CA 94105; Globex Industries, 456 Commerce Blvd, New York, NY 10001.
+
+IN WITNESS WHEREOF, the parties have executed this Agreement as of the date first written above.
