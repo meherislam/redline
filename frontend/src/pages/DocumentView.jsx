@@ -291,7 +291,7 @@ export default function DocumentView({ documentId, initialHighlightChunkId, init
           { chunk_id: popover.chunkId, old_text: popover.text, new_text: replaceText, occurrence: popover.occurrence || 1, group_id: groupId },
         ];
       }
-      await applyChanges(documentId, doc.version, changes);
+      await applyChanges(documentId, changes);
       setPopover(null);
       setPopoverMode(null);
       setReplaceText('');
@@ -325,7 +325,7 @@ export default function DocumentView({ documentId, initialHighlightChunkId, init
           { chunk_id: popover.chunkId, old_text: popover.text, new_text: '', occurrence: popover.occurrence || 1, group_id: groupId },
         ];
       }
-      await applyChanges(documentId, doc.version, changes);
+      await applyChanges(documentId, changes);
       setPopover(null);
       setPopoverMode(null);
       setReplaceText('');
@@ -394,7 +394,7 @@ export default function DocumentView({ documentId, initialHighlightChunkId, init
           group_id: groupId,
         });
       }
-      await applyChanges(documentId, doc.version, changes);
+      await applyChanges(documentId, changes);
       setSuccessMsg(`Replacements added as pending changes`);
       setReplaceAllText('');
       setOccurrences(null);
@@ -432,7 +432,6 @@ export default function DocumentView({ documentId, initialHighlightChunkId, init
     try {
       const result = await acceptChange(documentId, changeId);
       setSuccessMsg('Change accepted');
-      if (result.chunks) setChunks(result.chunks);
       const groupIds = new Set(result.group_change_ids || [changeId]);
       setAllChanges((prev) => prev.map((c) => groupIds.has(c.id) ? { ...c, status: 'accepted' } : c));
     } catch (e) {
@@ -445,8 +444,8 @@ export default function DocumentView({ documentId, initialHighlightChunkId, init
     try {
       const result = await rejectChange(documentId, changeId);
       setSuccessMsg('Change rejected');
-      if (result.chunks) setChunks(result.chunks);
       await loadDoc();
+      await loadChunks(page);
       const groupIds = new Set(result.group_change_ids || [changeId]);
       setAllChanges((prev) => prev.map((c) => groupIds.has(c.id) ? { ...c, status: 'rejected' } : c));
     } catch (e) {

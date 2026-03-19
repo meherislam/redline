@@ -31,7 +31,6 @@ class DocumentListItem(BaseModel):
     id: UUID
     title: str
     version: int
-    chunk_count: int
     updated_at: datetime
 
     model_config = {"from_attributes": True}

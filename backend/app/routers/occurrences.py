@@ -14,16 +14,16 @@ router = APIRouter(prefix="/documents/{document_id}/occurrences", tags=["occurre
 @router.get("", response_model=OccurrencesResponse)
 async def handle_get_occurrences(
     document_id: uuid.UUID,
-    q: str = Query(..., min_length=1),
+    term: str = Query(..., alias="q", min_length=1),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        rows = await find_occurrences(db, document_id, q.strip())
+        rows = await find_occurrences(db, document_id, term.strip())
     except DocumentNotFoundError:
         raise HTTPException(status_code=404, detail="Document not found.")
 
     return OccurrencesResponse(
-        term=q.strip(),
+        term=term.strip(),
         matches=[
             OccurrenceItem(**row)
             for row in rows

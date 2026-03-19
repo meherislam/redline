@@ -66,18 +66,17 @@ async def handle_create_document(
 
 @router.get("", response_model=DocumentListResponse)
 async def handle_list_documents(db: AsyncSession = Depends(get_db)):
-    rows = await list_documents(db)
+    documents = await list_documents(db)
 
     return DocumentListResponse(
         documents=[
             DocumentListItem(
-                id=row.id,
-                title=row.title,
-                version=row.version,
-                chunk_count=row.chunk_count,
-                updated_at=row.updated_at,
+                id=doc.id,
+                title=doc.title,
+                version=doc.version,
+                updated_at=doc.updated_at,
             )
-            for row in rows
+            for doc in documents
         ]
     )
 

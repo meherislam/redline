@@ -21,7 +21,6 @@ class TestSingleReplacement:
         response = await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {
                         "chunk_id": chunks[3]["id"],
@@ -33,17 +32,15 @@ class TestSingleReplacement:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["version"] == 2
         assert len(data["applied"]) == 1
         assert data["applied"][0]["status"] == "applied"
 
-    async def test_response_includes_updated_chunks(self, client: AsyncClient):
+    async def test_change_updates_chunk_content(self, client: AsyncClient):
         doc, chunks = await _setup_doc(client)
 
         response = await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {
                         "chunk_id": chunks[3]["id"],
@@ -53,13 +50,11 @@ class TestSingleReplacement:
                 ],
             },
         )
-        data = response.json()
+        assert response.status_code == 200
 
-        assert "chunks" in data
-        assert len(data["chunks"]) == 5
-
-        # The modified chunk should have the new text
-        modified = next(c for c in data["chunks"] if c["id"] == chunks[3]["id"])
+        # Verify the chunk was updated
+        chunks_resp = await client.get(f"/documents/{doc['id']}/chunks?page_size=50")
+        modified = next(c for c in chunks_resp.json()["chunks"] if c["id"] == chunks[3]["id"])
         assert "twenty-four (24) months" in modified["content"]
         assert "twelve (12) months" not in modified["content"]
 
@@ -69,7 +64,6 @@ class TestSingleReplacement:
         await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {
                         "chunk_id": chunks[3]["id"],
@@ -94,7 +88,6 @@ class TestBulkReplacement:
         response = await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {
                         "chunk_id": chunks[0]["id"],
@@ -111,12 +104,12 @@ class TestBulkReplacement:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["version"] == 2
         assert len(data["applied"]) == 2
 
-        # Both changes reflected in returned chunks
-        c0 = next(c for c in data["chunks"] if c["id"] == chunks[0]["id"])
-        c1 = next(c for c in data["chunks"] if c["id"] == chunks[1]["id"])
+        # Both changes reflected in chunks
+        chunks_resp = await client.get(f"/documents/{doc['id']}/chunks?page_size=50")
+        c0 = next(c for c in chunks_resp.json()["chunks"] if c["id"] == chunks[0]["id"])
+        c1 = next(c for c in chunks_resp.json()["chunks"] if c["id"] == chunks[1]["id"])
         assert "opening paragraph" in c0["content"]
         assert "critical content" in c1["content"]
 
@@ -129,7 +122,6 @@ class TestOccurrenceTargeting:
         response = await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {
                         "chunk_id": chunks[4]["id"],
@@ -141,7 +133,8 @@ class TestOccurrenceTargeting:
             },
         )
         assert response.status_code == 200
-        modified = next(c for c in response.json()["chunks"] if c["id"] == chunks[4]["id"])
+        chunks_resp = await client.get(f"/documents/{doc['id']}/chunks?page_size=50")
+        modified = next(c for c in chunks_resp.json()["chunks"] if c["id"] == chunks[4]["id"])
         assert "apple orange apple" in modified["content"]
 
     async def test_target_first_occurrence_by_default(self, client: AsyncClient):
@@ -150,7 +143,6 @@ class TestOccurrenceTargeting:
         response = await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {
                         "chunk_id": chunks[4]["id"],
@@ -161,7 +153,8 @@ class TestOccurrenceTargeting:
             },
         )
         assert response.status_code == 200
-        modified = next(c for c in response.json()["chunks"] if c["id"] == chunks[4]["id"])
+        chunks_resp = await client.get(f"/documents/{doc['id']}/chunks?page_size=50")
+        modified = next(c for c in chunks_resp.json()["chunks"] if c["id"] == chunks[4]["id"])
         assert "orange apple apple" in modified["content"]
 
 
@@ -175,7 +168,6 @@ class TestOccurrenceTargeting:
         response = await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {
                         "chunk_id": chunk_id,
@@ -187,7 +179,8 @@ class TestOccurrenceTargeting:
             },
         )
         assert response.status_code == 200
-        modified = next(c for c in response.json()["chunks"] if c["id"] == chunk_id)
+        chunks_resp = await client.get(f"/documents/{doc['id']}/chunks?page_size=50")
+        modified = next(c for c in chunks_resp.json()["chunks"] if c["id"] == chunk_id)
         assert "apple orange apple" in modified["content"]
 
         # Reject
@@ -211,7 +204,6 @@ class TestOccurrenceTargeting:
         r1 = await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {"chunk_id": chunk_id, "old_text": "apple", "new_text": "orange", "occurrence": 1},
                 ],
@@ -223,7 +215,6 @@ class TestOccurrenceTargeting:
         r2 = await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 2,
                 "changes": [
                     {"chunk_id": chunk_id, "old_text": "apple", "new_text": "orange", "occurrence": 1},
                 ],
@@ -257,7 +248,6 @@ class TestChangeErrors:
         response = await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {
                         "chunk_id": chunks[0]["id"],
@@ -276,7 +266,6 @@ class TestChangeErrors:
         response = await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {
                         "chunk_id": chunks[4]["id"],
@@ -296,7 +285,6 @@ class TestChangeErrors:
         response = await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {
                         "chunk_id": "00000000-0000-0000-0000-000000000000",
@@ -309,60 +297,6 @@ class TestChangeErrors:
         assert response.status_code == 400
 
 
-class TestVersionConflict:
-    async def test_wrong_version_returns_409(self, client: AsyncClient):
-        doc, chunks = await _setup_doc(client)
-
-        response = await client.post(
-            f"/documents/{doc['id']}/changes",
-            json={
-                "version": 999,
-                "changes": [
-                    {
-                        "chunk_id": chunks[0]["id"],
-                        "old_text": "first",
-                        "new_text": "1st",
-                    }
-                ],
-            },
-        )
-        assert response.status_code == 409
-        assert "updated since you last loaded" in response.json()["detail"].lower()
-
-    async def test_version_increments_correctly(self, client: AsyncClient):
-        doc, chunks = await _setup_doc(client)
-
-        # First change: v1 -> v2
-        r1 = await client.post(
-            f"/documents/{doc['id']}/changes",
-            json={
-                "version": 1,
-                "changes": [{"chunk_id": chunks[0]["id"], "old_text": "first", "new_text": "1st"}],
-            },
-        )
-        assert r1.json()["version"] == 2
-
-        # Second change: v2 -> v3
-        r2 = await client.post(
-            f"/documents/{doc['id']}/changes",
-            json={
-                "version": 2,
-                "changes": [{"chunk_id": chunks[1]["id"], "old_text": "second", "new_text": "2nd"}],
-            },
-        )
-        assert r2.json()["version"] == 3
-
-        # Using v1 again should conflict
-        r3 = await client.post(
-            f"/documents/{doc['id']}/changes",
-            json={
-                "version": 1,
-                "changes": [{"chunk_id": chunks[2]["id"], "old_text": "third", "new_text": "3rd"}],
-            },
-        )
-        assert r3.status_code == 409
-
-
 class TestAtomicRollback:
     async def test_partial_failure_rolls_back_all_changes(self, client: AsyncClient):
         doc, chunks = await _setup_doc(client)
@@ -371,7 +305,6 @@ class TestAtomicRollback:
         response = await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {
                         "chunk_id": chunks[0]["id"],
@@ -396,7 +329,6 @@ class TestAtomicRollback:
 
         # Version should still be 1
         doc_resp = await client.get(f"/documents/{doc['id']}")
-        assert doc_resp.json()["version"] == 1
 
 
 class TestChangeHistory:
@@ -406,7 +338,6 @@ class TestChangeHistory:
         await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {
                         "chunk_id": chunks[0]["id"],
@@ -423,7 +354,6 @@ class TestChangeHistory:
         assert len(changes) == 1
         assert changes[0]["old_text"] == "first"
         assert changes[0]["new_text"] == "1st"
-        assert changes[0]["document_version"] == 2
         assert changes[0]["occurrence"] == 1
 
     async def test_history_is_chronological(self, client: AsyncClient):
@@ -432,14 +362,12 @@ class TestChangeHistory:
         await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [{"chunk_id": chunks[0]["id"], "old_text": "first", "new_text": "1st"}],
             },
         )
         await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 2,
                 "changes": [{"chunk_id": chunks[1]["id"], "old_text": "second", "new_text": "2nd"}],
             },
         )
@@ -463,7 +391,6 @@ class TestChangeHistory:
         await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [{"chunk_id": chunks[0]["id"], "old_text": "first", "new_text": "1st"}],
             },
         )
@@ -481,7 +408,6 @@ class TestAcceptChange:
         await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [{"chunk_id": chunks[0]["id"], "old_text": "first", "new_text": "1st"}],
             },
         )
@@ -496,7 +422,7 @@ class TestAcceptChange:
         data = response.json()
         assert data["id"] == change_id
         assert data["status"] == "accepted"
-        assert "chunks" in data
+        assert "group_change_ids" in data
 
     async def test_accept_does_not_modify_content(self, client: AsyncClient):
         doc, chunks = await _setup_doc(client)
@@ -504,7 +430,6 @@ class TestAcceptChange:
         await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [{"chunk_id": chunks[0]["id"], "old_text": "first", "new_text": "1st"}],
             },
         )
@@ -530,7 +455,6 @@ class TestAcceptChange:
         await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [{"chunk_id": chunks[0]["id"], "old_text": "first", "new_text": "1st"}],
             },
         )
@@ -561,7 +485,6 @@ class TestRejectChange:
         await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [{"chunk_id": chunks[0]["id"], "old_text": "first", "new_text": "1st"}],
             },
         )
@@ -581,33 +504,12 @@ class TestRejectChange:
         assert "first" in content
         assert "1st" not in content
 
-    async def test_reject_bumps_version(self, client: AsyncClient):
-        doc, chunks = await _setup_doc(client)
-
-        await client.post(
-            f"/documents/{doc['id']}/changes",
-            json={
-                "version": 1,
-                "changes": [{"chunk_id": chunks[0]["id"], "old_text": "first", "new_text": "1st"}],
-            },
-        )
-
-        history = await client.get(f"/documents/{doc['id']}/changes")
-        change_id = history.json()["changes"][0]["id"]
-
-        await client.patch(f"/documents/{doc['id']}/changes/{change_id}/reject")
-
-        doc_resp = await client.get(f"/documents/{doc['id']}")
-        # Was v1, changed to v2 by apply, then v3 by reject
-        assert doc_resp.json()["version"] == 3
-
     async def test_cannot_reject_already_rejected(self, client: AsyncClient):
         doc, chunks = await _setup_doc(client)
 
         await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [{"chunk_id": chunks[0]["id"], "old_text": "first", "new_text": "1st"}],
             },
         )
@@ -628,7 +530,6 @@ class TestRejectChange:
         await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [{"chunk_id": chunks[0]["id"], "old_text": "first", "new_text": "1st"}],
             },
         )
@@ -640,7 +541,6 @@ class TestRejectChange:
         await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 2,
                 "changes": [{"chunk_id": chunks[0]["id"], "old_text": "1st", "new_text": "first-ever"}],
             },
         )
@@ -660,7 +560,6 @@ class TestRejectChange:
         r1 = await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [{"chunk_id": chunk_id, "old_text": "apple ", "new_text": "", "occurrence": 1}],
             },
         )
@@ -670,7 +569,6 @@ class TestRejectChange:
         r2 = await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 2,
                 "changes": [{"chunk_id": chunk_id, "old_text": "apple ", "new_text": "", "occurrence": 1}],
             },
         )
@@ -715,7 +613,6 @@ class TestChangeGroups:
         response = await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {"chunk_id": chunks[0]["id"], "old_text": "first", "new_text": "1st", "group_id": group_id},
                     {"chunk_id": chunks[1]["id"], "old_text": "second", "new_text": "2nd", "group_id": group_id},
@@ -735,7 +632,6 @@ class TestChangeGroups:
         response = await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {"chunk_id": chunks[0]["id"], "old_text": "first", "new_text": "1st"},
                 ],
@@ -753,7 +649,6 @@ class TestChangeGroups:
         await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {"chunk_id": chunks[0]["id"], "old_text": "first", "new_text": "1st", "group_id": group_id},
                     {"chunk_id": chunks[1]["id"], "old_text": "second", "new_text": "2nd", "group_id": group_id},
@@ -786,7 +681,6 @@ class TestChangeGroups:
         await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {"chunk_id": chunks[0]["id"], "old_text": "first", "new_text": "1st", "group_id": group_id},
                     {"chunk_id": chunks[1]["id"], "old_text": "second", "new_text": "2nd", "group_id": group_id},
@@ -820,7 +714,6 @@ class TestChangeGroups:
         await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {"chunk_id": chunks[0]["id"], "old_text": "first paragraph", "new_text": "", "group_id": group_id},
                     {"chunk_id": chunks[2]["id"], "old_text": "third paragraph", "new_text": "", "group_id": group_id},
@@ -849,7 +742,6 @@ class TestChangeGroups:
         await client.post(
             f"/documents/{doc['id']}/changes",
             json={
-                "version": 1,
                 "changes": [
                     {"chunk_id": chunks[0]["id"], "old_text": "first", "new_text": "1st", "group_id": group_id},
                     {"chunk_id": chunks[1]["id"], "old_text": "second", "new_text": "2nd", "group_id": group_id},

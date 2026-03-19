@@ -68,14 +68,6 @@ class TestListDocuments:
         titles = {d["title"] for d in docs}
         assert titles == {"Doc A", "Doc B"}
 
-    async def test_list_includes_chunk_count(self, client: AsyncClient):
-        await upload_document(client)
-
-        response = await client.get("/documents")
-        doc = response.json()["documents"][0]
-        assert doc["chunk_count"] == 5
-
-
 class TestGetDocument:
     async def test_get_returns_document(self, client: AsyncClient):
         created = await upload_document(client)

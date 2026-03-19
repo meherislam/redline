@@ -34,5 +34,5 @@ async def search_chunks(
 
     stmt = stmt.order_by(literal_column("rank").desc()).limit(limit)
 
-    result = await db.execute(stmt)
-    return result.all()
+    search_result = await db.execute(stmt)
+    return search_result.all()

@@ -10,7 +10,6 @@ from app.schemas import (
     ChangeActionResponse,
     ChangeHistoryItem,
     ChangeHistoryResponse,
-    ChunkContent,
 )
 from app.services.changes import (
     accept_change,
@@ -23,7 +22,6 @@ from app.services.exceptions import (
     ChangeNotFoundError,
     ChangeValidationError,
     DocumentNotFoundError,
-    VersionConflictError,
 )
 
 router = APIRouter(prefix="/documents/{document_id}/changes", tags=["changes"])
@@ -36,20 +34,16 @@ async def handle_apply_changes(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        version, applied, chunks = await apply_changes(
-            db, document_id, body.version, body.changes,
+        applied = await apply_changes(
+            db, document_id, body.changes,
         )
     except DocumentNotFoundError:
         raise HTTPException(status_code=404, detail="Document not found.")
-    except VersionConflictError as e:
-        raise HTTPException(status_code=409, detail=str(e))
     except ChangeValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     return ApplyChangesResponse(
-        version=version,
         applied=applied,
-        chunks=[ChunkContent.model_validate(c) for c in chunks],
     )
 
 
@@ -75,7 +69,7 @@ async def handle_accept_change(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        change, chunks, group_change_ids = await accept_change(db, document_id, change_id)
+        change, group_change_ids = await accept_change(db, document_id, change_id)
     except ChangeNotFoundError:
         raise HTTPException(status_code=404, detail="Change not found.")
     except ChangeValidationError as e:
@@ -84,7 +78,6 @@ async def handle_accept_change(
     return ChangeActionResponse(
         id=change.id,
         status=change.status,
-        chunks=[ChunkContent.model_validate(c) for c in chunks],
         group_change_ids=group_change_ids,
     )
 
@@ -96,7 +89,7 @@ async def handle_reject_change(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        change, chunks, group_change_ids = await reject_change(db, document_id, change_id)
+        change, group_change_ids = await reject_change(db, document_id, change_id)
     except ChangeNotFoundError:
         raise HTTPException(status_code=404, detail="Change not found.")
     except ChangeValidationError as e:
@@ -107,6 +100,5 @@ async def handle_reject_change(
     return ChangeActionResponse(
         id=change.id,
         status=change.status,
-        chunks=[ChunkContent.model_validate(c) for c in chunks],
         group_change_ids=group_change_ids,
     )

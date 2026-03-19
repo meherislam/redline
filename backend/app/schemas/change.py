@@ -15,7 +15,6 @@ class ChangeRequest(BaseModel):
 
 
 class ApplyChangesRequest(BaseModel):
-    version: int
     changes: list[ChangeRequest] = Field(min_length=1)
 
 
@@ -27,18 +26,8 @@ class ChangeAppliedItem(BaseModel):
     change_group_id: UUID
 
 
-class ChunkContent(BaseModel):
-    id: UUID
-    position: int
-    content: str
-
-    model_config = {"from_attributes": True}
-
-
 class ApplyChangesResponse(BaseModel):
-    version: int
     applied: list[ChangeAppliedItem]
-    chunks: list[ChunkContent]
 
 
 class ChangeHistoryItem(BaseModel):
@@ -49,7 +38,6 @@ class ChangeHistoryItem(BaseModel):
     occurrence: int
     old_text_offset: int | None = None
     status: ChangeStatus
-    document_version: int
     change_group_id: UUID
     created_at: datetime
 
@@ -63,5 +51,4 @@ class ChangeHistoryResponse(BaseModel):
 class ChangeActionResponse(BaseModel):
     id: UUID
     status: ChangeStatus
-    chunks: list[ChunkContent]
     group_change_ids: list[UUID]

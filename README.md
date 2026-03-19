@@ -12,7 +12,6 @@ A document management platform with targeted text replacement (redlining), chang
 - [API Reference](#api-reference)
 - [Chunking Strategy](#chunking-strategy)
 - [Search Implementation](#search-implementation)
-- [Concurrency Control](#concurrency-control)
 - [Performance Considerations](#performance-considerations)
 - [Running Tests](#running-tests)
 - [Sample Requests](#sample-requests)
@@ -98,7 +97,7 @@ Changes follow a redlining workflow: edits are applied immediately to chunk cont
 
 ### documents
 
-Stores document-level metadata. The `version` field increments with every change and is used for optimistic concurrency control.
+Stores document-level metadata.
 
 | Column      | Type         | Description                              |
 |-------------|--------------|------------------------------------------|
@@ -106,7 +105,6 @@ Stores document-level metadata. The `version` field increments with every change
 | title       | VARCHAR(255) | Document title                           |
 | source_path | VARCHAR(500) | Path to the original uploaded file        |
 | source_type | ENUM         | File type (`txt`)                        |
-| version     | INTEGER      | Incrementing version for concurrency      |
 | created_at  | TIMESTAMP    | Creation timestamp                       |
 | updated_at  | TIMESTAMP    | Last modification timestamp              |
 
@@ -140,7 +138,6 @@ An append-only audit log that records every text replacement made to a document.
 | occurrence       | INTEGER     | Which occurrence was targeted (default 1)            |
 | old_text_offset  | INTEGER     | Character position of old_text before replacement    |
 | status           | ENUM        | Change status: `pending`, `accepted`, or `rejected`  |
-| document_version | INTEGER     | Document version after this change                   |
 | change_group_id  | UUID        | Groups related changes for batch accept/reject       |
 | created_at       | TIMESTAMP   | When the change was made                             |
 
@@ -168,7 +165,6 @@ Upload a text file. The server reads the file, splits the content into paragraph
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "title": "Service Agreement",
-  "version": 1,
   "source_type": "txt",
   "chunk_count": 24,
   "created_at": "2026-03-14T12:00:00Z"
@@ -187,7 +183,7 @@ GET /documents
 GET /documents/:id
 ```
 
-Returns document metadata including the current `version` used for concurrency control.
+Returns document metadata.
 
 ### Chunks
 
@@ -208,12 +204,11 @@ POST /documents/:id/changes
 Content-Type: application/json
 ```
 
-Apply one or more text replacements to a document. The `version` in the request body must match the document's current version. All changes are applied atomically — if any single change fails, none are applied.
+Apply one or more text replacements to a document. All changes are applied atomically — if any single change fails, none are applied.
 
 **Request:**
 ```json
 {
-  "version": 3,
   "changes": [
     {
       "chunk_id": "chunk-002",
@@ -231,7 +226,6 @@ The `occurrence` field is optional (default 1) and specifies which occurrence of
 **Response (200):**
 ```json
 {
-  "version": 4,
   "applied": [
     {
       "chunk_id": "chunk-002",
@@ -247,7 +241,6 @@ The `occurrence` field is optional (default 1) and specifies which occurrence of
 
 **Error Responses:**
 - `400` — Text not found, occurrence out of range, or invalid chunk
-- `409` — Version conflict (document has been modified since last fetch)
 
 #### Get Change History
 
@@ -396,21 +389,6 @@ At query time, the search term is converted to a `tsquery` and matched against t
 
 ---
 
-## Concurrency Control
-
-The system uses optimistic locking via a version field on the documents table.
-
-1. Client fetches a document and receives the current `version`.
-2. Client submits a change request including the expected `version`.
-3. Server verifies the version matches. If it does, the changes are applied atomically and the version increments. If not, the server returns `409 Conflict`.
-4. On conflict, the client re-fetches the document to see what changed, resolves any differences, and retries.
-
-This approach prevents lost updates without requiring pessimistic locks that would block concurrent readers. It is well-suited to a document editing workflow where conflicts are infrequent — most of the time, only one person is editing a given document at a time.
-
-The version check and all changes within a request are wrapped in a single database transaction. If any change fails (text not found, occurrence out of range), the entire transaction rolls back and no changes are applied.
-
----
-
 ## Performance Considerations
 
 ### Large Documents (10MB+)
@@ -474,7 +452,6 @@ curl -X POST http://localhost:8000/documents \
 curl -X POST http://localhost:8000/documents/{id}/changes \
   -H "Content-Type: application/json" \
   -d '{
-    "version": 1,
     "changes": [
       {
         "chunk_id": "chunk-id-1",
@@ -542,7 +519,7 @@ Paragraphs were chosen as the split boundary because they're the natural unit of
 
 The schema separates three concerns into three tables:
 
-**Documents** hold metadata and the version counter. No content lives here — this is purely an identity and concurrency record. Keeping the version at the document level (not the chunk level) means a single integer check prevents conflicting edits across the entire document.
+**Documents** hold metadata. No content lives here — this is purely an identity record.
 
 **Chunks** hold the authoritative content. The current state of the document is always the chunks ordered by position. There is no need to replay a change log or reconstruct state from events. This makes reads fast and simple — just `SELECT ... ORDER BY position`.
 
@@ -573,12 +550,6 @@ Accept and reject are `PATCH` operations on action-based endpoints (`/changes/{i
 All endpoints live under `/documents` because documents are the primary resource. Changes, chunks, occurrences, and suggestions are nested under `/documents/{id}` because they operate within a specific document. Search is at `/documents/search` because it queries across the documents collection.
 
 Search and find-and-replace are separate endpoints because they serve different purposes. Full-text search (`/documents/search`) uses PostgreSQL FTS with stemming and ranking — it's for discovery. Occurrences (`/documents/{id}/occurrences`) uses exact case-sensitive `LIKE` matching — it's for precise text targeting in find-and-replace. Different tools for different jobs.
-
-### Why optimistic concurrency over pessimistic locking?
-
-Document editing is a low-contention workload. Most of the time, one person is editing a document at a time. Pessimistic locks (row-level locks, `SELECT ... FOR UPDATE`) would block concurrent readers and add complexity around lock timeout and deadlock handling — overhead that doesn't pay for itself in this use case.
-
-Optimistic locking with a version integer is simpler: read the version, submit it with your edit, get a 409 if someone else edited first. The client re-fetches and retries. The version check and all changes in a request are wrapped in a single transaction, so there's no window for a race between the check and the write.
 
 ### Why eager application with pending status?
 

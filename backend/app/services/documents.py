@@ -14,8 +14,8 @@ def split_into_chunks(text: str) -> list[str]:
 
 
 async def get_document_or_raise(db: AsyncSession, document_id: uuid.UUID) -> Document:
-    result = await db.execute(select(Document).where(Document.id == document_id))
-    doc = result.scalar_one_or_none()
+    doc_result = await db.execute(select(Document).where(Document.id == document_id))
+    doc = doc_result.scalar_one_or_none()
     if doc is None:
         raise DocumentNotFoundError()
     return doc
@@ -56,27 +56,17 @@ async def create_document(
     return doc, len(paragraphs)
 
 
-async def list_documents(db: AsyncSession):
-    stmt = (
-        select(
-            Document.id,
-            Document.title,
-            Document.version,
-            Document.updated_at,
-            func.count(Chunk.id).label("chunk_count"),
-        )
-        .outerjoin(Chunk, Chunk.document_id == Document.id)
-        .group_by(Document.id)
-        .order_by(Document.updated_at.desc())
+async def list_documents(db: AsyncSession) -> list[Document]:
+    docs_result = await db.execute(
+        select(Document).order_by(Document.updated_at.desc())
     )
-    result = await db.execute(stmt)
-    return result.all()
+    return list(docs_result.scalars().all())
 
 
 async def get_document_with_chunk_count(
     db: AsyncSession, document_id: uuid.UUID,
 ) -> tuple[Document, int]:
-    stmt = (
+    doc_result = await db.execute(
         select(
             Document,
             func.count(Chunk.id).label("chunk_count"),
@@ -85,8 +75,7 @@ async def get_document_with_chunk_count(
         .where(Document.id == document_id)
         .group_by(Document.id)
     )
-    result = await db.execute(stmt)
-    row = result.first()
+    row = doc_result.first()
 
     if row is None:
         raise DocumentNotFoundError()
@@ -99,20 +88,19 @@ async def get_chunks_paginated(
 ) -> tuple[list, int]:
     await get_document_or_raise(db, document_id)
 
-    total_result = await db.execute(
+    count_result = await db.execute(
         select(func.count(Chunk.id)).where(Chunk.document_id == document_id)
     )
-    total_chunks = total_result.scalar()
+    total_chunks = count_result.scalar()
 
     offset = (page - 1) * page_size
-    stmt = (
+    chunks_result = await db.execute(
         select(Chunk)
         .where(Chunk.document_id == document_id)
         .order_by(Chunk.position)
         .offset(offset)
         .limit(page_size)
     )
-    result = await db.execute(stmt)
-    chunks = result.scalars().all()
+    chunks = chunks_result.scalars().all()
 
     return chunks, total_chunks

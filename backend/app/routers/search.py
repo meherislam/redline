@@ -12,14 +12,14 @@ router = APIRouter(prefix="/documents", tags=["search"])
 
 @router.get("/search", response_model=SearchResponse)
 async def handle_search(
-    q: str = Query(..., min_length=1),
+    query: str = Query(..., alias="q", min_length=1),
     document_id: uuid.UUID | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    rows = await search_chunks(db, q, document_id)
+    rows = await search_chunks(db, query, document_id)
 
     return SearchResponse(
-        query=q,
+        query=query,
         results=[
             SearchResultItem(
                 document_id=row.document_id,

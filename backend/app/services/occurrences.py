@@ -45,8 +45,8 @@ async def find_occurrences(
         .order_by(Chunk.position)
     )
 
-    result = await db.execute(stmt)
-    rows = result.all()
+    occurrences_result = await db.execute(stmt)
+    rows = occurrences_result.all()
 
     return [
         {"chunk_id": row.id, "chunk_position": row.position, "snippet": _build_snippet(row.content, term)}

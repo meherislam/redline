@@ -111,15 +111,15 @@ class TestBulkChangePerformance:
         start = time.perf_counter()
         response = await client.post(
             f"/documents/{doc['id']}/changes",
-            json={"version": 1, "changes": changes},
+            json={"changes": changes},
         )
         elapsed = time.perf_counter() - start
 
         assert response.status_code == 200
         data = response.json()
-        assert data["version"] == 2
         assert len(data["applied"]) == 50
         print(f"\nBulk replace (50 changes): {elapsed:.3f}s")
 
         # Verify changes actually applied
-        assert any("Article" in c["content"] for c in data["chunks"])
+        chunks_resp = await client.get(f"/documents/{doc['id']}/chunks?page_size=50")
+        assert any("Article" in c["content"] for c in chunks_resp.json()["chunks"])

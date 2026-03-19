@@ -30,11 +30,11 @@ export async function getChunks(documentId, page = 1, pageSize = 20) {
   return request(`/documents/${documentId}/chunks?page=${page}&page_size=${pageSize}`);
 }
 
-export async function applyChanges(documentId, version, changes) {
+export async function applyChanges(documentId, changes) {
   return request(`/documents/${documentId}/changes`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ version, changes }),
+    body: JSON.stringify({ changes }),
   });
 }
 
