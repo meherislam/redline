@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -10,8 +10,12 @@ from app.schemas import (
     DocumentListResponse,
     DocumentResponse,
 )
-from app.services import documents as document_service
-from app.services.exceptions import DocumentNotFoundError
+from app.services.documents import (
+    create_document,
+    get_document_with_chunk_count,
+    list_documents,
+)
+from app.services.exceptions import DocumentNotFoundError, DocumentValidationError
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -19,7 +23,7 @@ ALLOWED_CONTENT_TYPES = {"text/plain"}
 
 
 @router.post("", status_code=201, response_model=DocumentCreateResponse)
-async def create_document(
+async def handle_create_document(
     title: str = Form(...),
     file: UploadFile = None,
     db: AsyncSession = Depends(get_db),
@@ -44,10 +48,10 @@ async def create_document(
         )
 
     try:
-        doc, chunk_count = await document_service.create_document(
+        doc, chunk_count = await create_document(
             db, title, file.filename, text,
         )
-    except ValueError as e:
+    except DocumentValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     return DocumentCreateResponse(
@@ -61,8 +65,8 @@ async def create_document(
 
 
 @router.get("", response_model=DocumentListResponse)
-async def list_documents(db: AsyncSession = Depends(get_db)):
-    rows = await document_service.list_documents(db)
+async def handle_list_documents(db: AsyncSession = Depends(get_db)):
+    rows = await list_documents(db)
 
     return DocumentListResponse(
         documents=[
@@ -79,19 +83,16 @@ async def list_documents(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)
-async def get_document(
+async def handle_get_document(
     document_id: uuid.UUID,
-    response: Response,
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        doc, chunk_count = await document_service.get_document_with_chunk_count(
+        doc, chunk_count = await get_document_with_chunk_count(
             db, document_id,
         )
     except DocumentNotFoundError:
         raise HTTPException(status_code=404, detail="Document not found.")
-
-    response.headers["ETag"] = f'"{doc.version}"'
 
     return DocumentResponse(
         id=doc.id,
@@ -102,14 +103,3 @@ async def get_document(
         created_at=doc.created_at,
         updated_at=doc.updated_at,
     )
-
-
-@router.delete("/{document_id}", status_code=204)
-async def delete_document(
-    document_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-):
-    try:
-        await document_service.delete_document(db, document_id)
-    except DocumentNotFoundError:
-        raise HTTPException(status_code=404, detail="Document not found.")

@@ -77,7 +77,7 @@ class TestListDocuments:
 
 
 class TestGetDocument:
-    async def test_get_returns_document_with_etag(self, client: AsyncClient):
+    async def test_get_returns_document(self, client: AsyncClient):
         created = await upload_document(client)
 
         response = await client.get(f"/documents/{created['id']}")
@@ -89,42 +89,8 @@ class TestGetDocument:
         assert data["version"] == 1
         assert data["chunk_count"] == 5
 
-        etag = response.headers.get("etag")
-        assert etag == '"1"'
-
     async def test_get_nonexistent_returns_404(self, client: AsyncClient):
         response = await client.get("/documents/00000000-0000-0000-0000-000000000000")
-        assert response.status_code == 404
-
-
-class TestDeleteDocument:
-    async def test_delete_returns_204(self, client: AsyncClient):
-        created = await upload_document(client)
-
-        response = await client.delete(f"/documents/{created['id']}")
-        assert response.status_code == 204
-
-        # Confirm it's gone
-        response = await client.get(f"/documents/{created['id']}")
-        assert response.status_code == 404
-
-    async def test_delete_nonexistent_returns_404(self, client: AsyncClient):
-        response = await client.delete("/documents/00000000-0000-0000-0000-000000000000")
-        assert response.status_code == 404
-
-    async def test_delete_cascades_to_chunks(self, client: AsyncClient):
-        created = await upload_document(client)
-        doc_id = created["id"]
-
-        # Verify chunks exist
-        response = await client.get(f"/documents/{doc_id}/chunks")
-        assert response.json()["total_chunks"] == 5
-
-        # Delete
-        await client.delete(f"/documents/{doc_id}")
-
-        # Chunks endpoint should 404 now
-        response = await client.get(f"/documents/{doc_id}/chunks")
         assert response.status_code == 404
 
 

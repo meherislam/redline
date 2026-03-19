@@ -2,6 +2,10 @@ class DocumentNotFoundError(Exception):
     pass
 
 
+class DocumentValidationError(Exception):
+    pass
+
+
 class ChunkNotFoundError(Exception):
     pass
 

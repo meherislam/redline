@@ -767,7 +767,7 @@
 
 .doc-paragraph.flash {
   background: #fef9c3;
-  animation: flashFade 2s ease forwards;
+  animation: flashFade 4s ease forwards;
 }
 
 @keyframes flashFade {

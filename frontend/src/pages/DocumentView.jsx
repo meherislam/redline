@@ -6,7 +6,7 @@ import {
   getChangeHistory,
   acceptChange,
   rejectChange,
-  search as apiSearch,
+  getOccurrences,
   suggestReplacement,
 } from '../api/client';
 
@@ -22,10 +22,10 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString();
 }
 
-export default function DocumentView({ documentId, initialHighlightChunkId, onBack }) {
+export default function DocumentView({ documentId, initialHighlightChunkId, initialPage, onBack }) {
   const [doc, setDoc] = useState(null);
   const [chunks, setChunks] = useState([]);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(initialPage || 1);
   const [totalChunks, setTotalChunks] = useState(0);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
@@ -38,9 +38,9 @@ export default function DocumentView({ documentId, initialHighlightChunkId, onBa
   const [suggesting, setSuggesting] = useState(false);
   const [suggestInstruction, setSuggestInstruction] = useState('');
 
-  // Search + Replace All
+  // Find + Replace All
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState(null);
+  const [occurrences, setOccurrences] = useState(null);
   const [highlightChunkId, setHighlightChunkId] = useState(initialHighlightChunkId || null);
   const [replaceAllText, setReplaceAllText] = useState('');
   const [applyingReplaceAll, setApplyingReplaceAll] = useState(false);
@@ -101,10 +101,23 @@ export default function DocumentView({ documentId, initialHighlightChunkId, onBa
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-        setTimeout(() => setHighlightChunkId(null), 2500);
+        setTimeout(() => setHighlightChunkId(null), 4000);
       }, 100);
     }
   }, [initialHighlightChunkId, chunks]);
+
+  // Scroll to highlighted chunk after page change loads new chunks
+  useEffect(() => {
+    if (highlightChunkId && !initialHighlightChunkId && chunks.length > 0) {
+      setTimeout(() => {
+        const el = document.getElementById(`chunk-${highlightChunkId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        setTimeout(() => setHighlightChunkId(null), 4000);
+      }, 100);
+    }
+  }, [chunks, highlightChunkId]);
 
   useEffect(() => {
     if (successMsg) {
@@ -349,8 +362,8 @@ export default function DocumentView({ documentId, initialHighlightChunkId, onBa
     if (!searchQuery.trim()) return;
     setError(null);
     try {
-      const data = await apiSearch(searchQuery.trim(), documentId);
-      setSearchResults(data.results);
+      const data = await getOccurrences(documentId, searchQuery.trim());
+      setOccurrences(data);
     } catch (e) {
       setError(e.message);
     }
@@ -358,57 +371,33 @@ export default function DocumentView({ documentId, initialHighlightChunkId, onBa
 
   function handleClearSearch() {
     setSearchQuery('');
-    setSearchResults(null);
+    setOccurrences(null);
     setReplaceAllText('');
   }
 
-  // Count exact occurrences of searchQuery across loaded chunks
-  function countMatches() {
-    if (!searchQuery.trim()) return { total: 0, byChunk: [] };
-    const term = searchQuery.trim();
-    const byChunk = [];
-    let total = 0;
-    for (const chunk of chunks) {
-      let count = 0;
-      let idx = 0;
-      while (true) {
-        idx = chunk.content.indexOf(term, idx);
-        if (idx === -1) break;
-        count++;
-        idx += term.length;
-      }
-      if (count > 0) {
-        byChunk.push({ chunkId: chunk.id, count });
-        total += count;
-      }
-    }
-    return { total, byChunk };
-  }
-
-  const matchInfo = searchResults ? countMatches() : { total: 0, byChunk: [] };
+  const occurrenceTotal = occurrences ? occurrences.total_chunks : 0;
 
   async function handleReplaceAll() {
-    if (!searchQuery.trim() || !replaceAllText || !doc || matchInfo.total === 0) return;
+    if (!searchQuery.trim() || !replaceAllText || !doc || !occurrences || occurrences.matches.length === 0) return;
     setApplyingReplaceAll(true);
     setError(null);
     try {
       const term = searchQuery.trim();
       const groupId = crypto.randomUUID();
       const changes = [];
-      for (const { chunkId, count } of matchInfo.byChunk) {
-        for (let occ = 1; occ <= count; occ++) {
-          changes.push({
-            chunk_id: chunkId,
-            old_text: term,
-            new_text: replaceAllText,
-            occurrence: 1,
-            group_id: groupId,
-          });
-        }
+      for (const match of occurrences.matches) {
+        changes.push({
+          chunk_id: match.chunk_id,
+          old_text: term,
+          new_text: replaceAllText,
+          occurrence: 1,
+          group_id: groupId,
+        });
       }
       await applyChanges(documentId, doc.version, changes);
-      setSuccessMsg(`${matchInfo.total} replacements added as pending changes`);
+      setSuccessMsg(`Replacements added as pending changes`);
       setReplaceAllText('');
+      setOccurrences(null);
       setShowChanges(true);
       await refreshAfterChange();
     } catch (e) {
@@ -418,13 +407,23 @@ export default function DocumentView({ documentId, initialHighlightChunkId, onBa
     }
   }
 
-  function handleSearchResultClick(chunkId) {
+  function handleSearchResultClick(chunkId, chunkPosition) {
+    // Calculate which page this chunk lives on and switch if needed
+    if (chunkPosition) {
+      const targetPage = Math.ceil(chunkPosition / PAGE_SIZE);
+      if (targetPage !== page) {
+        setPage(targetPage);
+        setHighlightChunkId(chunkId);
+        // Scroll will happen after chunks reload via the useEffect
+        return;
+      }
+    }
     setHighlightChunkId(chunkId);
     const el = document.getElementById(`chunk-${chunkId}`);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-    setTimeout(() => setHighlightChunkId(null), 2000);
+    setTimeout(() => setHighlightChunkId(null), 4000);
   }
 
   // Accept/Reject handlers
@@ -554,9 +553,9 @@ export default function DocumentView({ documentId, initialHighlightChunkId, onBa
     return parts.length > 0 ? parts : content;
   }
 
-  // Highlight search term inline in chunk content
+  // Highlight search term inline in chunk content (case-sensitive to match replace-all behavior)
   function highlightChunkContent(content) {
-    if (!searchResults || !searchQuery.trim()) return content;
+    if (!occurrences || !searchQuery.trim()) return content;
     const term = searchQuery.trim();
     const parts = [];
     let lastIndex = 0;
@@ -743,20 +742,20 @@ export default function DocumentView({ documentId, initialHighlightChunkId, onBa
           )}
         </div>
 
-        {/* Side panel: search results or changes */}
-        {(searchResults || showChanges) && (
+        {/* Side panel: find results or changes */}
+        {(occurrences || showChanges) && (
           <div className="doc-panel">
-            {searchResults && (
+            {occurrences && (
               <div className="panel-section">
                 <div className="panel-header">
-                  <h3>Results</h3>
-                  <span className="panel-count">{searchResults.length}</span>
+                  <h3>Find Results</h3>
+                  <span className="panel-count">{occurrenceTotal}</span>
                   <button className="panel-close" onClick={handleClearSearch}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </button>
                 </div>
 
-                {searchResults.length > 0 && (
+                {occurrenceTotal > 0 && (
                   <div className="replace-all-section">
                     <div className="replace-all-input">
                       <input
@@ -767,26 +766,26 @@ export default function DocumentView({ documentId, initialHighlightChunkId, onBa
                       />
                       <button
                         className="replace-all-btn"
-                        disabled={applyingReplaceAll || matchInfo.total === 0 || !replaceAllText}
+                        disabled={applyingReplaceAll || occurrenceTotal === 0 || !replaceAllText}
                         onClick={handleReplaceAll}
                       >
-                        {applyingReplaceAll ? 'Applying...' : `Replace All (${matchInfo.total})`}
+                        {applyingReplaceAll ? 'Applying...' : `Replace All (${occurrenceTotal})`}
                       </button>
                     </div>
                   </div>
                 )}
 
-                {searchResults.length === 0 ? (
+                {occurrenceTotal === 0 ? (
                   <p className="panel-empty">No matches found.</p>
                 ) : (
                   <ul className="search-results-list">
-                    {searchResults.map((r, i) => (
+                    {occurrences.matches.map((m, i) => (
                       <li
                         key={i}
                         className="search-result"
-                        onClick={() => handleSearchResultClick(r.chunk_id)}
+                        onClick={() => handleSearchResultClick(m.chunk_id, m.chunk_position)}
                       >
-                        <div className="search-snippet" dangerouslySetInnerHTML={{ __html: r.snippet }} />
+                        <div className="search-snippet">{m.snippet}</div>
                       </li>
                     ))}
                   </ul>

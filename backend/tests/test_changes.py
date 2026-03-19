@@ -165,6 +165,91 @@ class TestOccurrenceTargeting:
         assert "orange apple apple" in modified["content"]
 
 
+    async def test_reject_specific_occurrence_reverts_correct_text(self, client: AsyncClient):
+        """Replacing the 2nd occurrence then rejecting should revert
+        only the 2nd occurrence, leaving the 1st unchanged."""
+        doc, chunks = await _setup_doc(client)
+        chunk_id = chunks[4]["id"]  # "... duplicate words: apple apple apple."
+
+        # Replace 2nd "apple" with "orange"
+        response = await client.post(
+            f"/documents/{doc['id']}/changes",
+            json={
+                "version": 1,
+                "changes": [
+                    {
+                        "chunk_id": chunk_id,
+                        "old_text": "apple",
+                        "new_text": "orange",
+                        "occurrence": 2,
+                    }
+                ],
+            },
+        )
+        assert response.status_code == 200
+        modified = next(c for c in response.json()["chunks"] if c["id"] == chunk_id)
+        assert "apple orange apple" in modified["content"]
+
+        # Reject
+        history = await client.get(f"/documents/{doc['id']}/changes")
+        change_id = history.json()["changes"][0]["id"]
+        response = await client.patch(f"/documents/{doc['id']}/changes/{change_id}/reject")
+        assert response.status_code == 200
+
+        # Should be back to original — all three apples
+        chunks_resp = await client.get(f"/documents/{doc['id']}/chunks")
+        content = next(c for c in chunks_resp.json()["chunks"] if c["id"] == chunk_id)["content"]
+        assert "apple apple apple" in content
+
+    async def test_two_same_replacements_reject_second_correctly(self, client: AsyncClient):
+        """Two occurrences replaced with the same new_text — rejecting the 2nd
+        should revert the correct one, not the 1st."""
+        doc, chunks = await _setup_doc(client)
+        chunk_id = chunks[4]["id"]  # "... duplicate words: apple apple apple."
+
+        # Replace 1st "apple" with "orange"
+        r1 = await client.post(
+            f"/documents/{doc['id']}/changes",
+            json={
+                "version": 1,
+                "changes": [
+                    {"chunk_id": chunk_id, "old_text": "apple", "new_text": "orange", "occurrence": 1},
+                ],
+            },
+        )
+        assert r1.status_code == 200
+
+        # Replace 2nd "apple" with "orange" (now occurrence 1 of remaining "apple"s)
+        r2 = await client.post(
+            f"/documents/{doc['id']}/changes",
+            json={
+                "version": 2,
+                "changes": [
+                    {"chunk_id": chunk_id, "old_text": "apple", "new_text": "orange", "occurrence": 1},
+                ],
+            },
+        )
+        assert r2.status_code == 200
+
+        # Chunk should now be "orange orange apple"
+        chunks_resp = await client.get(f"/documents/{doc['id']}/chunks")
+        content = next(c for c in chunks_resp.json()["chunks"] if c["id"] == chunk_id)["content"]
+        assert "orange orange apple" in content
+
+        # Reject the 2nd change (the later one)
+        history = await client.get(f"/documents/{doc['id']}/changes")
+        changes = [c for c in history.json()["changes"] if c["status"] == "pending"]
+        # changes[1] is the later one (chronological order)
+        change2_id = changes[1]["id"]
+        response = await client.patch(f"/documents/{doc['id']}/changes/{change2_id}/reject")
+        assert response.status_code == 200
+
+        # Should be "orange apple apple" — only the 2nd replacement reverted
+        chunks_resp = await client.get(f"/documents/{doc['id']}/chunks")
+        content = next(c for c in chunks_resp.json()["chunks"] if c["id"] == chunk_id)["content"]
+        assert "orange apple apple" in content
+
+
 class TestChangeErrors:
     async def test_text_not_found_returns_400(self, client: AsyncClient):
         doc, chunks = await _setup_doc(client)

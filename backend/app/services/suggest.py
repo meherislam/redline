@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.models import Chunk
+from app.services.documents import get_document_or_raise
 from app.services.exceptions import ChunkNotFoundError
 
 SYSTEM_PROMPT = """You are a document editing assistant. You will receive a passage of text with a highlighted selection. Your task is to suggest an improved replacement for the selected text.
@@ -37,6 +38,8 @@ async def suggest_replacement(
     selected_text: str,
     instruction: str,
 ) -> str:
+    await get_document_or_raise(db, document_id)
+
     chunk_result = await db.execute(
         select(Chunk).where(
             Chunk.id == chunk_id,

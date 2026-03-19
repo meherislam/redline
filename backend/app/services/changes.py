@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.models import Change, ChangeStatus, Chunk, Document
 from app.schemas import ChangeAppliedItem, ChangeRequest
+from app.services.documents import get_document_or_raise
 from app.services.exceptions import (
     ChangeConflictError,
     ChangeNotFoundError,
@@ -12,6 +13,8 @@ from app.services.exceptions import (
     DocumentNotFoundError,
     VersionConflictError,
 )
+
+BATCH_SIZE = 100
 
 
 def replace_nth_occurrence(text: str, old: str, new: str, n: int) -> tuple[str, int]:
@@ -126,8 +129,6 @@ async def apply_changes(
             )
         )
 
-    # Bulk insert change records in batches to avoid oversized statements
-    BATCH_SIZE = 100
     for i in range(0, len(change_records), BATCH_SIZE):
         await db.execute(insert(Change), change_records[i:i + BATCH_SIZE])
 
@@ -143,9 +144,7 @@ async def apply_changes(
 async def get_change_history(
     db: AsyncSession, document_id: uuid.UUID,
 ) -> list[Change]:
-    doc_exists = await db.execute(select(Document.id).where(Document.id == document_id))
-    if doc_exists.scalar_one_or_none() is None:
-        raise DocumentNotFoundError()
+    await get_document_or_raise(db, document_id)
 
     stmt = (
         select(Change)

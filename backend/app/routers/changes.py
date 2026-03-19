@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -12,7 +12,12 @@ from app.schemas import (
     ChangeHistoryResponse,
     ChunkContent,
 )
-from app.services import changes as change_service
+from app.services.changes import (
+    accept_change,
+    apply_changes,
+    get_change_history,
+    reject_change,
+)
 from app.services.exceptions import (
     ChangeConflictError,
     ChangeNotFoundError,
@@ -25,14 +30,13 @@ router = APIRouter(prefix="/documents/{document_id}/changes", tags=["changes"])
 
 
 @router.post("", response_model=ApplyChangesResponse)
-async def apply_changes(
+async def handle_apply_changes(
     document_id: uuid.UUID,
     body: ApplyChangesRequest,
     db: AsyncSession = Depends(get_db),
-    if_match: str | None = Header(None),
 ):
     try:
-        version, applied, chunks = await change_service.apply_changes(
+        version, applied, chunks = await apply_changes(
             db, document_id, body.version, body.changes,
         )
     except DocumentNotFoundError:
@@ -50,12 +54,12 @@ async def apply_changes(
 
 
 @router.get("", response_model=ChangeHistoryResponse)
-async def get_change_history(
+async def handle_get_change_history(
     document_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        changes = await change_service.get_change_history(db, document_id)
+        changes = await get_change_history(db, document_id)
     except DocumentNotFoundError:
         raise HTTPException(status_code=404, detail="Document not found.")
 
@@ -65,13 +69,13 @@ async def get_change_history(
 
 
 @router.patch("/{change_id}/accept", response_model=ChangeActionResponse)
-async def accept_change(
+async def handle_accept_change(
     document_id: uuid.UUID,
     change_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        change, chunks, group_change_ids = await change_service.accept_change(db, document_id, change_id)
+        change, chunks, group_change_ids = await accept_change(db, document_id, change_id)
     except ChangeNotFoundError:
         raise HTTPException(status_code=404, detail="Change not found.")
     except ChangeValidationError as e:
@@ -86,13 +90,13 @@ async def accept_change(
 
 
 @router.patch("/{change_id}/reject", response_model=ChangeActionResponse)
-async def reject_change(
+async def handle_reject_change(
     document_id: uuid.UUID,
     change_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        change, chunks, group_change_ids = await change_service.reject_change(db, document_id, change_id)
+        change, chunks, group_change_ids = await reject_change(db, document_id, change_id)
     except ChangeNotFoundError:
         raise HTTPException(status_code=404, detail="Change not found.")
     except ChangeValidationError as e:

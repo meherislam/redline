@@ -7,20 +7,23 @@ import './App.css';
 function App() {
   const [selectedDocId, setSelectedDocId] = useState(null);
   const [highlightChunkId, setHighlightChunkId] = useState(null);
+  const [initialPage, setInitialPage] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   function handleDocumentCreated() {
     setRefreshKey((k) => k + 1);
   }
 
-  function handleSearchResultClick(documentId, chunkId) {
+  function handleSearchResultClick(documentId, chunkId, chunkPosition) {
     setHighlightChunkId(chunkId);
+    setInitialPage(chunkPosition ? Math.ceil(chunkPosition / 50) : null);
     setSelectedDocId(documentId);
   }
 
   function handleBackToList() {
     setSelectedDocId(null);
     setHighlightChunkId(null);
+    setInitialPage(null);
   }
 
   return (
@@ -38,6 +41,7 @@ function App() {
             key={`${selectedDocId}-${highlightChunkId}`}
             documentId={selectedDocId}
             initialHighlightChunkId={highlightChunkId}
+            initialPage={initialPage}
             onBack={handleBackToList}
           />
         ) : (

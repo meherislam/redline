@@ -15,6 +15,7 @@ from app.schemas.document import (
     DocumentListResponse,
     DocumentResponse,
 )
+from app.schemas.occurrences import OccurrenceItem, OccurrencesResponse
 from app.schemas.search import SearchResponse, SearchResultItem
 from app.schemas.suggest import SuggestRequest, SuggestResponse
 
@@ -33,6 +34,8 @@ __all__ = [
     "DocumentListItem",
     "DocumentListResponse",
     "DocumentResponse",
+    "OccurrenceItem",
+    "OccurrencesResponse",
     "SearchResponse",
     "SearchResultItem",
     "SuggestRequest",

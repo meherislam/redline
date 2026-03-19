@@ -24,7 +24,7 @@ class TestBasicSearch:
     async def test_single_term_returns_results(self, client: AsyncClient):
         await upload_document(client, title="Legal Doc", text=LEGAL_TEXT)
 
-        response = await client.get("/search?q=indemnification")
+        response = await client.get("/documents/search?q=indemnification")
         assert response.status_code == 200
         data = response.json()
         assert data["query"] == "indemnification"
@@ -33,14 +33,14 @@ class TestBasicSearch:
     async def test_multi_word_query(self, client: AsyncClient):
         await upload_document(client, title="Legal Doc", text=LEGAL_TEXT)
 
-        response = await client.get("/search?q=intellectual+property")
+        response = await client.get("/documents/search?q=intellectual+property")
         assert response.status_code == 200
         assert len(response.json()["results"]) >= 1
 
     async def test_no_results_for_unmatched_query(self, client: AsyncClient):
         await upload_document(client, title="Legal Doc", text=LEGAL_TEXT)
 
-        response = await client.get("/search?q=cryptocurrency")
+        response = await client.get("/documents/search?q=cryptocurrency")
         assert response.status_code == 200
         assert response.json()["results"] == []
 
@@ -49,7 +49,7 @@ class TestSearchSnippets:
     async def test_snippet_contains_mark_tags(self, client: AsyncClient):
         await upload_document(client, title="Legal Doc", text=LEGAL_TEXT)
 
-        response = await client.get("/search?q=indemnification")
+        response = await client.get("/documents/search?q=indemnification")
         results = response.json()["results"]
         assert len(results) >= 1
 
@@ -60,7 +60,7 @@ class TestSearchSnippets:
     async def test_result_includes_document_metadata(self, client: AsyncClient):
         doc = await upload_document(client, title="My Legal Doc", text=LEGAL_TEXT)
 
-        response = await client.get("/search?q=indemnification")
+        response = await client.get("/documents/search?q=indemnification")
         result = response.json()["results"][0]
 
         assert result["document_id"] == doc["id"]
@@ -74,7 +74,7 @@ class TestSearchScoping:
         await upload_document(client, title="Legal Doc", text=LEGAL_TEXT)
         await upload_document(client, title="NDA Doc", text=NDA_TEXT)
 
-        response = await client.get("/search?q=indemnification")
+        response = await client.get("/documents/search?q=indemnification")
         results = response.json()["results"]
 
         # Both documents mention indemnification
@@ -85,7 +85,7 @@ class TestSearchScoping:
         legal = await upload_document(client, title="Legal Doc", text=LEGAL_TEXT)
         await upload_document(client, title="NDA Doc", text=NDA_TEXT)
 
-        response = await client.get(f"/search?q=indemnification&document_id={legal['id']}")
+        response = await client.get(f"/documents/search?q=indemnification&document_id={legal['id']}")
         results = response.json()["results"]
 
         # Only results from the scoped document
@@ -97,11 +97,11 @@ class TestSearchScoping:
         nda = await upload_document(client, title="NDA Doc", text=NDA_TEXT)
 
         # "Alpha Corp" only appears in the NDA
-        response = await client.get(f"/search?q=Alpha+Corp&document_id={legal['id']}")
+        response = await client.get(f"/documents/search?q=Alpha+Corp&document_id={legal['id']}")
         assert response.json()["results"] == []
 
         # But found when scoped to the NDA
-        response = await client.get(f"/search?q=Alpha+Corp&document_id={nda['id']}")
+        response = await client.get(f"/documents/search?q=Alpha+Corp&document_id={nda['id']}")
         assert len(response.json()["results"]) >= 1
 
 
@@ -109,7 +109,7 @@ class TestSearchRanking:
     async def test_results_ordered_by_relevance(self, client: AsyncClient):
         await upload_document(client, title="Legal Doc", text=LEGAL_TEXT)
 
-        response = await client.get("/search?q=agreement")
+        response = await client.get("/documents/search?q=agreement")
         results = response.json()["results"]
 
         if len(results) > 1:

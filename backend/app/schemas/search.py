@@ -7,6 +7,7 @@ class SearchResultItem(BaseModel):
     document_id: UUID
     document_title: str
     chunk_id: UUID
+    chunk_position: int
     snippet: str
     rank: float
 

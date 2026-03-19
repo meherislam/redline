@@ -187,17 +187,7 @@ GET /documents
 GET /documents/:id
 ```
 
-Returns document metadata. The current version is also returned as an `ETag` header for concurrency control.
-
-**Headers:** `ETag: "3"`
-
-#### Delete Document
-
-```
-DELETE /documents/:id
-```
-
-**Response (204):** No content. Cascades to all chunks and changes.
+Returns document metadata including the current `version` used for concurrency control.
 
 ### Chunks
 
@@ -312,10 +302,35 @@ Reverts a change (and all changes in its group) by restoring the original text. 
 #### Full-Text Search
 
 ```
-GET /search?q=indemnification&document_id=optional-uuid
+GET /documents/search?q=indemnification&document_id=optional-uuid
 ```
 
 Searches across all documents (or a single document if `document_id` is provided) using PostgreSQL full-text search. Returns matching chunks with highlighted snippets and relevance ranking.
+
+### Occurrences (Exact Text Matching)
+
+#### Find Occurrences
+
+```
+GET /documents/:id/occurrences?q=Provider
+```
+
+Finds all chunks in a document that contain the exact term (case-sensitive) using SQL `LIKE` filtering. Used by the find-and-replace feature. This is distinct from full-text search — no stemming, no ranking, just exact string matching done entirely in the database.
+
+**Response (200):**
+```json
+{
+  "term": "Provider",
+  "matches": [
+    {
+      "chunk_id": "chunk-uuid",
+      "chunk_position": 3,
+      "snippet": "...between Meridian Technology Solutions, Inc. (\"Provider\"), and Cascadia Financial..."
+    }
+  ],
+  "total_chunks": 1
+}
+```
 
 ### AI Suggestions
 
@@ -385,7 +400,7 @@ At query time, the search term is converted to a `tsquery` and matched against t
 
 The system uses optimistic locking via a version field on the documents table.
 
-1. Client fetches a document and receives the current `version` (also returned as an `ETag` header).
+1. Client fetches a document and receives the current `version`.
 2. Client submits a change request including the expected `version`.
 3. Server verifies the version matches. If it does, the changes are applied atomically and the version increments. If not, the server returns `409 Conflict`.
 4. On conflict, the client re-fetches the document to see what changed, resolves any differences, and retries.
@@ -492,7 +507,7 @@ curl -X PATCH http://localhost:8000/documents/{id}/changes/{change_id}/reject
 ### Search across all documents
 
 ```bash
-curl "http://localhost:8000/search?q=indemnification"
+curl "http://localhost:8000/documents/search?q=indemnification"
 ```
 
 ### Get AI suggestion
@@ -549,14 +564,15 @@ The alternative would be an in-memory inverted index built at the application la
 
 The API separates reads and writes along REST conventions:
 
-- `GET` for reads: documents, chunks, changes, search
+- `GET` for reads: documents, chunks, changes, search, occurrences
 - `POST` for creation: document upload, applying changes, requesting suggestions
 - `PATCH` for state transitions: accepting and rejecting changes
-- `DELETE` for removal: document deletion
 
 Accept and reject are `PATCH` operations on action-based endpoints (`/changes/{id}/accept`, `/changes/{id}/reject`) rather than a generic `PATCH /changes/{id}` with a status body. This is intentional — accept and reject have fundamentally different semantics. Accept is a status-only operation (the replacement text is already in the chunk). Reject is a content operation (it reverts the chunk text). Exposing them as distinct endpoints makes the API honest about what each operation does, and prevents a caller from accidentally setting an invalid status like `"re-pending"` through a generic update.
 
-Changes are nested under documents (`/documents/{id}/changes`) because a change has no meaning outside its document context. Search is a top-level endpoint (`/search`) because it can span multiple documents. Suggest is nested under documents (`/documents/{id}/suggest`) because it requires chunk context from a specific document.
+All endpoints live under `/documents` because documents are the primary resource. Changes, chunks, occurrences, and suggestions are nested under `/documents/{id}` because they operate within a specific document. Search is at `/documents/search` because it queries across the documents collection.
+
+Search and find-and-replace are separate endpoints because they serve different purposes. Full-text search (`/documents/search`) uses PostgreSQL FTS with stemming and ranking — it's for discovery. Occurrences (`/documents/{id}/occurrences`) uses exact case-sensitive `LIKE` matching — it's for precise text targeting in find-and-replace. Different tools for different jobs.
 
 ### Why optimistic concurrency over pessimistic locking?
 

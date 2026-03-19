@@ -63,7 +63,7 @@ class TestSearchPerformance:
         await upload_document(client, title="Search Perf Doc", text=text)
 
         start = time.perf_counter()
-        response = await client.get("/search?q=indemnification")
+        response = await client.get("/documents/search?q=indemnification")
         elapsed = time.perf_counter() - start
 
         results = response.json()["results"]
@@ -77,7 +77,7 @@ class TestSearchPerformance:
             await upload_document(client, title=f"Multi Doc {i}", text=text)
 
         start = time.perf_counter()
-        response = await client.get("/search?q=arbitration")
+        response = await client.get("/documents/search?q=arbitration")
         elapsed = time.perf_counter() - start
 
         results = response.json()["results"]

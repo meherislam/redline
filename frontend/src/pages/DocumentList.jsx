@@ -195,7 +195,7 @@ export default function DocumentList({ refreshKey, onSelectDocument, onSearchRes
                     <li
                       key={i}
                       className="search-group-result"
-                      onClick={() => onSearchResultClick(r.document_id, r.chunk_id)}
+                      onClick={() => onSearchResultClick(r.document_id, r.chunk_id, r.chunk_position)}
                     >
                       <div className="search-snippet" dangerouslySetInnerHTML={{ __html: r.snippet }} />
                     </li>

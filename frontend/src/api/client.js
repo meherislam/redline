@@ -16,11 +16,7 @@ export async function listDocuments() {
 }
 
 export async function getDocument(id) {
-  const res = await fetch(`${BASE}/documents/${id}`);
-  if (!res.ok) throw new Error('Failed to fetch document');
-  const data = await res.json();
-  const etag = res.headers.get('ETag');
-  return { ...data, etag };
+  return request(`/documents/${id}`);
 }
 
 export async function createDocument(title, file) {
@@ -28,10 +24,6 @@ export async function createDocument(title, file) {
   form.append('title', title);
   form.append('file', file);
   return request('/documents', { method: 'POST', body: form });
-}
-
-export async function deleteDocument(id) {
-  return request(`/documents/${id}`, { method: 'DELETE' });
 }
 
 export async function getChunks(documentId, page = 1, pageSize = 20) {
@@ -59,9 +51,13 @@ export async function rejectChange(documentId, changeId) {
 }
 
 export async function search(query, documentId = null) {
-  let url = `/search?q=${encodeURIComponent(query)}`;
+  let url = `/documents/search?q=${encodeURIComponent(query)}`;
   if (documentId) url += `&document_id=${documentId}`;
   return request(url);
+}
+
+export async function getOccurrences(documentId, term) {
+  return request(`/documents/${documentId}/occurrences?q=${encodeURIComponent(term)}`);
 }
 
 export async function suggestReplacement(documentId, chunkId, selectedText, instruction = undefined) {

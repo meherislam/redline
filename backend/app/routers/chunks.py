@@ -5,21 +5,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.schemas import ChunkListResponse, ChunkResponse
-from app.services import documents as document_service
+from app.services.documents import get_chunks_paginated
 from app.services.exceptions import DocumentNotFoundError
 
 router = APIRouter(prefix="/documents/{document_id}/chunks", tags=["chunks"])
 
 
 @router.get("", response_model=ChunkListResponse)
-async def get_chunks(
+async def handle_get_chunks(
     document_id: uuid.UUID,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        chunks, total_chunks = await document_service.get_chunks_paginated(
+        chunks, total_chunks = await get_chunks_paginated(
             db, document_id, page, page_size,
         )
     except DocumentNotFoundError:

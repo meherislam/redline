@@ -4,7 +4,9 @@ from sqlalchemy import insert, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.models import Chunk, Document, SourceType
-from app.services.exceptions import DocumentNotFoundError
+from app.services.exceptions import DocumentNotFoundError, DocumentValidationError
+
+BATCH_SIZE = 100
 
 
 def split_into_chunks(text: str) -> list[str]:
@@ -25,7 +27,7 @@ async def create_document(
     paragraphs = split_into_chunks(text)
 
     if not paragraphs:
-        raise ValueError("File is empty or contains no text.")
+        raise DocumentValidationError("File is empty or contains no text.")
 
     doc = Document(
         id=uuid.uuid4(),
@@ -36,8 +38,6 @@ async def create_document(
     )
     db.add(doc)
 
-    # Bulk insert chunks in batches to avoid oversized statements
-    BATCH_SIZE = 100
     chunk_records = [
         {
             "id": uuid.uuid4(),
@@ -92,12 +92,6 @@ async def get_document_with_chunk_count(
         raise DocumentNotFoundError()
 
     return row[0], row[1]
-
-
-async def delete_document(db: AsyncSession, document_id: uuid.UUID) -> None:
-    doc = await get_document_or_raise(db, document_id)
-    await db.delete(doc)
-    await db.commit()
 
 
 async def get_chunks_paginated(
