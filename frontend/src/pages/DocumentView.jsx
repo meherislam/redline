@@ -211,8 +211,31 @@ export default function DocumentView({ documentId, initialHighlightChunkId, onBa
     };
 
     if (startChunkId === endChunkId) {
-      // Single-chunk selection
-      setPopover({ ...popoverBase, chunkId: startChunkId });
+      // Single-chunk selection — calculate which occurrence was selected
+      const chunk = chunks.find((c) => c.id === startChunkId);
+      let occurrence = 1;
+      if (chunk) {
+        // Get character offset of selection start within the chunk's text
+        const chunkEl = document.getElementById(`chunk-${startChunkId}`);
+        if (chunkEl) {
+          const preRange = document.createRange();
+          preRange.setStartBefore(chunkEl.firstChild || chunkEl);
+          preRange.setEnd(range.startContainer, range.startOffset);
+          const offsetInChunk = preRange.toString().length;
+          // Count how many times the selected text appears before this offset
+          let searchFrom = 0;
+          let count = 0;
+          while (searchFrom <= offsetInChunk) {
+            const idx = chunk.content.indexOf(text, searchFrom);
+            if (idx === -1 || idx > offsetInChunk) break;
+            count++;
+            if (idx === offsetInChunk) break;
+            searchFrom = idx + text.length;
+          }
+          occurrence = Math.max(1, count);
+        }
+      }
+      setPopover({ ...popoverBase, chunkId: startChunkId, occurrence });
     } else {
       // Cross-chunk selection
       const involvedChunks = getInvolvedChunks(startChunkId, endChunkId, range);
@@ -252,7 +275,7 @@ export default function DocumentView({ documentId, initialHighlightChunkId, onBa
         }));
       } else {
         changes = [
-          { chunk_id: popover.chunkId, old_text: popover.text, new_text: replaceText, occurrence: 1, group_id: groupId },
+          { chunk_id: popover.chunkId, old_text: popover.text, new_text: replaceText, occurrence: popover.occurrence || 1, group_id: groupId },
         ];
       }
       await applyChanges(documentId, doc.version, changes);
@@ -286,7 +309,7 @@ export default function DocumentView({ documentId, initialHighlightChunkId, onBa
         }));
       } else {
         changes = [
-          { chunk_id: popover.chunkId, old_text: popover.text, new_text: '', occurrence: 1, group_id: groupId },
+          { chunk_id: popover.chunkId, old_text: popover.text, new_text: '', occurrence: popover.occurrence || 1, group_id: groupId },
         ];
       }
       await applyChanges(documentId, doc.version, changes);

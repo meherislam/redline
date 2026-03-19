@@ -225,11 +225,13 @@ async def _reject_single_change(
             )
         chunk.content = chunk.content[:offset] + change.old_text + chunk.content[offset:]
     else:
-        if change.new_text not in chunk.content:
+        offset = change.old_text_offset if change.old_text_offset is not None else 0
+        expected = chunk.content[offset:offset + len(change.new_text)]
+        if expected != change.new_text:
             raise ChangeConflictError(
                 "Cannot reject: the changed text has been modified by a later edit. Reject the later change first."
             )
-        chunk.content = chunk.content.replace(change.new_text, change.old_text, 1)
+        chunk.content = chunk.content[:offset] + change.old_text + chunk.content[offset + len(change.new_text):]
 
     change.status = ChangeStatus.rejected
 
